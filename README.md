@@ -45,7 +45,7 @@ Nous parlons donc ici de reconnaisance faciale alimentée par deep learning, en 
 
 Ce projet implémente une pipeline complète de **vérification d'identité par reconnaissance faciale**, dans le cadre de l'UE "Programmation carte à puce". L'objectif est de comparer au moins deux algorithmes de référence sur le dataset public choisi **LFW (Labeled Faces in the Wild)** et de rendre les résultats accessibles via une interface utilisateur moderne et accessible.
 
-![apercu](https://hackmd.io/_uploads/r1pxVnQn-g.png)
+https://github.com/user-attachments/assets/cc3fc8ac-b400-4677-acdc-218a37597e2c
 
 >Page principale de l'application
 
@@ -112,7 +112,7 @@ ResNet50 est un réseau de neurones convolutif profond développé par Microsoft
 - **Librairie** : `tensorflow` / `keras`
 
 
-![fig_resnet](https://hackmd.io/_uploads/Syt3TjQ3be.jpg)
+https://github.com/user-attachments/assets/493691f0-839c-4a85-be9e-fc26e7d48028
 
 > Schématisation du fonctionnement de ResNet50, Source https://www.ultralytics.com/fr/blog/what-is-resnet-50-and-what-is-its-relevance-in-computer-vision
 
@@ -131,8 +131,8 @@ ArcFace est un modèle développé par InsightFace qui introduit une marge angul
 - **Détection faciale** : RetinaFace (intégrée)
 - **Fonction de perte** : ArcFace Loss (marge angulaire additive)
 - **Librairie** : `insightface`
-
-![fig_arcface](https://hackmd.io/_uploads/r1uECim2bl.png)
+  
+https://github.com/user-attachments/assets/f1e215a1-38a6-4017-8b1a-651a36aa6f0c
 > Schématisation du fonctionnement de ArcFace, Source https://www.ultralytics.com/fr/blog/what-is-resnet-50-and-what-is-its-relevance-in-computer-vision
 
 **Spécificité :** Principe de l'ArcFace Loss
@@ -271,7 +271,7 @@ face-id-systeme/
 5. Cliquer sur **Vérifier l'identité**
 6. Lire le résultat : score de similarité + dit s'il y a match ou pas
 
-![apercu](https://hackmd.io/_uploads/rksEN272Zl.png)
+https://github.com/user-attachments/assets/cc3fc8ac-b400-4677-acdc-218a37597e2c
 
 >Onglet de vérification / comparaison de deux images
 
@@ -284,7 +284,7 @@ face-id-systeme/
 3. Le système compare en continu le flux webcam à la référence
 4. Cliquer sur **Arrêter** pour terminer
 
-![apercu_webcam](https://hackmd.io/_uploads/SJHH4n73bl.png)
+https://github.com/user-attachments/assets/6d7da608-ecc1-4c3a-b018-221c0228f6f2
 
 >Onglet de vérificaction webcam en temps réel.
 
@@ -298,7 +298,7 @@ face-id-systeme/
 4. Consulter le tableau comparatif FAR / FRR / AUC
 5. Visualiser et télécharger les courbes ROC
 
-![apercu_lfw_eval](https://hackmd.io/_uploads/HyJINhm3Wx.png)
+https://github.com/user-attachments/assets/a3ecde0e-b699-436c-975b-84cd9b678f52
 
 >Onglet d'évaluation LFW
 
@@ -307,7 +307,7 @@ face-id-systeme/
 
 Cet onglet est à disposition afin de voir en temps réel l'état des dépendances, et un récap de comment lancer l'application.
 
-![apercu_env](https://hackmd.io/_uploads/SJtd4hm2bg.png)
+https://github.com/user-attachments/assets/9106674c-2894-4c2d-91b2-5afae6143fa8
 
 >Onglet environnement
 
