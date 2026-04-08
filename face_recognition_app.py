@@ -1,22 +1,22 @@
 """
-=============================================================================
-RECONNAISSANCE FACIALE POUR LA VÉRIFICATION D'IDENTITÉ
-=============================================================================
+=============================================================================================
+RECONNAISSANCE FACIALE POUR LA VÉRIFICATION D'IDENTITÉ - PROJET FIAC
+============================================================================================
 Voici toutes les étapes intégrées du projet :
-  1. Configuration & vérification de l'environnement
+  1. Configuration et vérification de l'environnement
   2. Préparation des données LFW
-  3. Modèle ResNet50 (TensorFlow/Keras) — extractor de features
+  3. Modèle ResNet50 (TensorFlow/Keras), extracteur de features
   4. Modèle ArcFace (insightface)
   5. Évaluation : FAR, FRR, ROC, AUC
-  6. Interface Streamlit (upload image + webcam temps réel)
+  6. Interface Streamlit (permettant notamment l'upload d'image de ref + webcam temps réel)
 
 Lancement :
   bash launch_fast.sh
-=============================================================================
+===============================================================================================
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
-# IMPORTS
+# IMPORTS - importants
 # ─────────────────────────────────────────────────────────────────────────────
 import os
 import io
@@ -33,7 +33,6 @@ import matplotlib
 matplotlib.use("Agg")
 
 import torch
-import tensorflow
 from sklearn.datasets import fetch_lfw_pairs
 from sklearn.metrics import roc_curve, auc
 import streamlit as st
@@ -44,12 +43,13 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"   # silence TensorFlow logs
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTES & CHEMINS
 # ─────────────────────────────────────────────────────────────────────────────
+
 DEVICE       = "cuda" if torch.cuda.is_available() else "cpu"
 DATA_DIR     = Path("data")
 RESULTS_DIR  = Path("evaluation/results")
 PLOTS_DIR    = Path("evaluation/plots")
-IMG_SIZE_RN  = 224   # taille de l'entrée ResNet50
-IMG_SIZE_AF  = 160   # taille de l'entrée ArcFace
+IMG_SIZE_RN  = 224   # taille entrée ResNet50
+IMG_SIZE_AF  = 160   # taille entrée ArcFace
 THRESHOLD_RN = 0.80  # seuil cosinus ResNet50  (à calibrer par l'utilisateur)
 THRESHOLD_AF = 0.30  # seuil cosinus ArcFace   (à calibrer par l'utilisateur)
 
@@ -58,9 +58,9 @@ for d in [DATA_DIR, RESULTS_DIR, PLOTS_DIR]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 1 — VÉRIFICATION ENVIRONNEMENT
+#  1 — VÉRIFICATION ENVIRONNEMENT
 # ─────────────────────────────────────────────────────────────────────────────
-def check_environment() -> dict:
+def check_environment() -> dict: #checker l'environnement au cas où
     results = {}
     libs = {
         "tensorflow": lambda: __import__("tensorflow").__version__,
@@ -84,21 +84,81 @@ def check_environment() -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 2 — PRÉPARATION DES DONNÉES LFW
+#  2 — PRÉPARATION DES DONNÉES LFW
 # ─────────────────────────────────────────────────────────────────────────────
 def load_lfw_pairs(subset: str = "test") -> tuple:
-    st.info("Téléchargement LFW (premier lancement ~150 Mo)…")
-    lfw    = fetch_lfw_pairs(subset=subset, color=True, resize=1.0,
-                             data_home=str(DATA_DIR))
-    pairs  = lfw.pairs    # (N, 2, H, W, 3) float [0,1]
-    labels = lfw.target   # 0 ou 1
-    return pairs, labels
+    """
+    Fonction générant des paires équilibrées directement depuis les images LFW, sans utiliser les .txt.
+    - Paires positives  (label=1) : 2 images de la même personne
+    - Paires négatives  (label=0) : 2 images de personnes différentes
+    Les images sont contenues dans data/lfw_home/lfw_funneled/
+    """
+    import random
+
+    lfw_root = DATA_DIR / "lfw_home" / "lfw_funneled"
+    if not lfw_root.exists():
+        st.error(f"Dossier LFW introuvable : {lfw_root}")
+        return np.array([]), np.array([])
+
+    # Lister les personnes avec >=2 images (positives) et toutes (négatives)
+    people_multi = {}
+    people_all   = {}
+    for person_dir in sorted(lfw_root.iterdir()):
+        if not person_dir.is_dir():
+            continue
+        imgs = sorted(person_dir.glob("*.jpg"))
+        if len(imgs) >= 2:
+            people_multi[person_dir.name] = imgs
+        if imgs:
+            people_all[person_dir.name] = imgs
+
+    multi_names = list(people_multi.keys())
+    all_names   = list(people_all.keys())
+    random.seed(42)
+
+    pairs_imgs, labels = [], []
+
+    # Paires positives
+    for name in random.sample(multi_names, min(250, len(multi_names))):
+        imgs = people_multi[name]
+        a, b = random.sample(imgs, 2)
+        pairs_imgs.append((str(a), str(b)))
+        labels.append(1)
+
+    # Paires négatives (même nombre)
+    for _ in range(len(pairs_imgs)):
+        n1, n2 = random.sample(all_names, 2)
+        a = random.choice(people_all[n1])
+        b = random.choice(people_all[n2])
+        pairs_imgs.append((str(a), str(b)))
+        labels.append(0)
+
+    # Mélange
+    combined = list(zip(pairs_imgs, labels))
+    random.shuffle(combined)
+    pairs_imgs, labels = zip(*combined)
+
+    # Chargement des images en numpy float [0,1]
+    def load_img(path):
+        img = cv2.imread(path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        return img.astype(np.float32) / 255.0
+
+    st.info(f"Chargement de {len(labels)} paires pour l'évaluation...")
+    pairs_np  = np.array([[load_img(a), load_img(b)] for a, b in pairs_imgs])
+    labels_np = np.array(labels)
+
+    #Comptage des paires
+    pos = int(labels_np.sum())
+    neg = int((1 - labels_np).sum())
+    st.success(f"O.K.: {len(labels_np)} paires — {pos} positives, {neg} négatives")
+    return pairs_np, labels_np
 
 
 def preprocess_for_resnet(img_array: np.ndarray) -> np.ndarray:
     """
-    img_array : float [0,1], shape (H, W, 3)  — issu de LFW
-    → float32 224×224×3 prétraité pour ResNet50
+    img_array : float [0,1], shape (H, W, 3), issu de LFW
+    float32 224×224×3 prétraité pour ResNet50, pour que ça soit plus facile
     """
     from tensorflow.keras.applications.resnet50 import preprocess_input
     img = (img_array * 255).astype(np.uint8)
@@ -111,7 +171,7 @@ def preprocess_for_resnet(img_array: np.ndarray) -> np.ndarray:
 def preprocess_for_arcface(img_array: np.ndarray) -> np.ndarray:
     """
     img_array : float [0,1], shape (H, W, 3)
-    → uint8 BGR 160×160
+    uint8 BGR 160×160, pour que ça soit plus facile aussi
     """
     img = (img_array * 255).astype(np.uint8)
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
@@ -120,20 +180,21 @@ def preprocess_for_arcface(img_array: np.ndarray) -> np.ndarray:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 3A — MODÈLE RESNET50 (TensorFlow / Keras)
+# 3a — MODÈLE RESNET50 (TensorFlow / Keras)
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="Chargement ResNet50…")
 def load_resnet50():
     """
-    Charge ResNet50 pré-entraîné sur ImageNet sans la tête de classification.
+    Charge ResNet50 pré-entraîné sur ImageNet.
     Ajoute un GlobalAveragePooling2D pour obtenir un embedding 2048-D.
-    Identique au modèle défini dans le notebook.
+    J'ai repris les grands pas de ce que l'on avait fait en cours.
     """
-    #import tensorflow as tf
+    import tensorflow as tf
     from tensorflow.keras.applications import ResNet50
     from tensorflow.keras.layers import GlobalAveragePooling2D
     from tensorflow.keras import Model
 
+    #Appel au modèle ResNet50
     base = ResNet50(include_top=False, weights="imagenet",
                     input_shape=(IMG_SIZE_RN, IMG_SIZE_RN, 3))
     output = base.output
@@ -145,39 +206,41 @@ def load_resnet50():
 def get_resnet_embedding(img_bgr: np.ndarray, extractor) -> np.ndarray:
     """
     img_bgr : uint8 BGR (capture webcam ou upload)
-    → embedding 2048-D normalisé (L2)
+    embedding 2048-D normalisé (L2)
     """
     from tensorflow.keras.applications.resnet50 import preprocess_input
 
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     img     = cv2.resize(img_rgb, (IMG_SIZE_RN, IMG_SIZE_RN))
     img     = img.astype(np.float32)
-    img     = preprocess_input(img)              # normalisation ImageNet
-    img     = np.expand_dims(img, axis=0)        # (1, 224, 224, 3)
+    img     = preprocess_input(img)              # normalisation via ImageNet
+    img     = np.expand_dims(img, axis=0)        # taille attendue (1, 224, 224, 3)
 
-    emb = extractor.predict(img, verbose=0)      # (1, 2048)
+    #Prédiction du modèle
+    emb = extractor.predict(img, verbose=0)      # taille attendue (1, 2048)
     emb = emb[0]
     norm = np.linalg.norm(emb)
     if norm > 0:
-        emb = emb / norm                         # normalisation L2
+        emb = emb / norm                         # normalisation L2!
     return emb
 
-
+#Calcul de la similarité
 def resnet_similarity(img1: np.ndarray, img2: np.ndarray,
                        extractor) -> float:
     """Similarité cosinus entre deux images BGR."""
     e1 = get_resnet_embedding(img1, extractor)
     e2 = get_resnet_embedding(img2, extractor)
-    return float(np.dot(e1, e2))                 # cosinus (vecteurs normalisés)
+    return float(np.dot(e1, e2))                 # cosinus, donc des vecteurs normalisés
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 3B — MODÈLE ARCFACE
+#  3b — MODÈLE ARCFACE
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource(show_spinner="Chargement ArcFace…")
 def load_arcface():
     import insightface
     from insightface.app import FaceAnalysis
+    #Va load ArcFace
     app = FaceAnalysis(name="buffalo_sc",
                        providers=["CPUExecutionProvider"])
     app.prepare(ctx_id=-1, det_size=(IMG_SIZE_AF, IMG_SIZE_AF))
@@ -185,6 +248,7 @@ def load_arcface():
 
 
 def get_arcface_embedding(img_bgr: np.ndarray, app) -> np.ndarray | None:
+    #notamment là où joue ArcFace Loss
     faces = app.get(img_bgr)
     if not faces:
         return None
@@ -200,13 +264,14 @@ def arcface_similarity(img1: np.ndarray, img2: np.ndarray, app) -> float:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 4 — ÉVALUATION : FAR / FRR / ROC / AUC
+#  4 — ÉVALUATION : FAR / FRR / ROC / AUC
 # ─────────────────────────────────────────────────────────────────────────────
 def compute_far_frr(scores: np.ndarray, labels: np.ndarray,
                     threshold: float) -> tuple[float, float]:
     preds    = (scores >= threshold).astype(int)
     neg_mask = labels == 0
     pos_mask = labels == 1
+    #fait les calculs nécessaires pour FAR et FRR
     far = np.sum((preds == 1) & neg_mask) / max(np.sum(neg_mask), 1)
     frr = np.sum((preds == 0) & pos_mask) / max(np.sum(pos_mask), 1)
     return float(far), float(frr)
@@ -217,8 +282,8 @@ def evaluate_model(pairs: np.ndarray, labels: np.ndarray,
                    preprocess_fn,
                    max_pairs: int = 300) -> dict:
     """
-    Évalue un modèle sur max_pairs paires LFW.
-    preprocess_fn : fonction de prétraitement adaptée au modèle.
+    Permet d'évaluer un modèle sur nb=max_pairs de paires LFW.
+    preprocess_fn, c'est donc la fonction de prétraitement adaptée au modèle.
     """
     n      = min(len(labels), max_pairs)
     scores = []
@@ -264,7 +329,7 @@ def evaluate_model(pairs: np.ndarray, labels: np.ndarray,
 
     return result
 
-
+#Va permettre de montrer les courbes ROC
 def plot_roc_curves(results: list[dict]) -> plt.Figure:
     colors = ["#00C9FF", "#FF6B6B"]
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -309,7 +374,7 @@ def plot_far_frr(results: list[dict]) -> plt.Figure:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 5 — VÉRIFICATION D'IDENTITÉ (logique métier)
+#  5 — VÉRIFICATION D'IDENTITÉ (logique métier)
 # ─────────────────────────────────────────────────────────────────────────────
 def verify_identity(img1_bgr: np.ndarray, img2_bgr: np.ndarray,
                     model_choice: str, threshold: float,
@@ -329,7 +394,7 @@ def verify_identity(img1_bgr: np.ndarray, img2_bgr: np.ndarray,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# ÉTAPE 6 — INTERFACE STREAMLIT
+#  6 — INTERFACE STREAMLIT FINAL
 # ─────────────────────────────────────────────────────────────────────────────
 def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
     rgb = np.array(pil_img.convert("RGB"))
@@ -339,7 +404,7 @@ def pil_to_bgr(pil_img: Image.Image) -> np.ndarray:
 def draw_result_overlay(img_bgr: np.ndarray, match: bool,
                          score: float) -> np.ndarray:
     color = (0, 220, 0) if match else (0, 0, 220)
-    label = f"{'✓ MATCH' if match else '✗ NO MATCH'}  {score:.3f}"
+    label = f"{'It is a big match!! :D' if match else 'No no match... :c'}  {score:.3f}"
     h, w  = img_bgr.shape[:2]
     overlay = img_bgr.copy()
     cv2.rectangle(overlay, (0, h - 38), (w, h), color, -1)
@@ -378,11 +443,11 @@ def render_metric(label: str, value: str, col):
 
 
 def main():
-    st.set_page_config(page_title="Face ID Système", page_icon="🔍",
+    st.set_page_config(page_title="FIAC System", page_icon="🧩",
                        layout="wide", initial_sidebar_state="expanded")
     st.markdown(CSS, unsafe_allow_html=True)
 
-    # ── Sidebar ──────────────────────────────────────────────────────────────
+    # Sidebar avec le choix des modèles + seuil de détection
     with st.sidebar:
         st.markdown("## FIAC System")
         st.markdown("---")
@@ -403,7 +468,7 @@ def main():
         st.markdown("---")
         env_check = st.button("Vérifier l'environnement")
 
-    # ── Chargement des modèles ────────────────────────────────────────────────
+    #  Chargement des modèles 
     resnet_model, arcface_app = None, None
     try:
         resnet_model = load_resnet50()
@@ -414,7 +479,7 @@ def main():
     except Exception as e:
         st.sidebar.warning(f"ArcFace non disponible : {e}")
 
-    # ── Tabs ──────────────────────────────────────────────────────────────────
+    # Les différentes Tabs pour la vérification d'image, la webcam, etc
     tab_verify, tab_webcam, tab_eval, tab_env = st.tabs([
         "Vérification image",
         "Webcam temps réel",
@@ -441,7 +506,7 @@ def main():
                 st.image(Image.open(probe_file), use_column_width=True)
 
         if ref_file and probe_file:
-            if st.button("🔎 Vérifier l'identité"):
+            if st.button("Vérifier l'identité"):
                 ref_bgr   = pil_to_bgr(Image.open(ref_file))
                 probe_bgr = pil_to_bgr(Image.open(probe_file))
                 with st.spinner("Calcul des embeddings…"):
@@ -449,7 +514,7 @@ def main():
                                           threshold, resnet=resnet_model,
                                           arcface=arcface_app)
                 status = "match-ok" if res["match"] else "match-fail"
-                icon   = "IDENTITÉ CONFIRMÉE!!" if res["match"] else "IDENTITÉ REJETÉE!!"
+                icon   = "O.K.: IDENTITÉ CONFIRMÉE" if res["match"] else "NO NO: IDENTITÉ REJETÉE"
                 st.markdown(
                     f'<div class="result-card {status}"><strong>{icon}</strong><br>'
                     f'Score : <strong>{res["score"]}</strong> '
@@ -471,8 +536,8 @@ def main():
             st.image(cv2.cvtColor(ref_bgr_wc, cv2.COLOR_BGR2RGB),
                      caption="Référence", width=200)
 
-        start_cam = st.button("Démarrer la webcam")
-        stop_cam  = st.button("Arrêter")
+        start_cam = st.button("Démarrer la webcam!")
+        stop_cam  = st.button("Arrêter la caméra")
         frame_ph  = st.empty()
         result_ph = st.empty()
 
@@ -499,7 +564,7 @@ def main():
                     frame_ph.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
                                    channels="RGB", use_column_width=True)
                     status = "match-ok" if res["match"] else "match-fail"
-                    icon   = "CONFIRMÉE!!" if res["match"] else "REJETÉE!!"
+                    icon   = "O.K.: CONFIRMÉE" if res["match"] else "NO NO: REJETÉE"
                     result_ph.markdown(
                         f'<div class="result-card {status}" style="padding:.6rem 1rem">'
                         f'{icon} — score : <strong>{res["score"]}</strong></div>',
@@ -519,7 +584,7 @@ def main():
         run_eval = st.button("Lancer l'évaluation")
 
         if run_eval:
-            pairs, labels = load_lfw_pairs("test")
+            pairs, labels = load_lfw_pairs("test") #va donc lire les paires pour permettre les futurs calculs de reconnaissance
             results = []
 
             if resnet_model is not None:
@@ -571,7 +636,7 @@ def main():
                     fig_bar = plot_far_frr(results)
                     st.pyplot(fig_bar, use_container_width=True)
 
-                st.success(f"Évaluation terminée. Résultats dans `{RESULTS_DIR}/`.")
+                st.success(f"O.K.: Évaluation terminée. Résultats dans `{RESULTS_DIR}/`.")
 
     # ── TAB 4 : ENVIRONNEMENT ────────────────────────────────────────────────
     with tab_env:
@@ -598,10 +663,13 @@ def main():
                     f'</div>', unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("#### Lancement")
+        st.markdown("#### Lancement rapide")
+        st.code("bash launch_fast.sh", language="bash")
+        st.markdown("---")
+        st.markdown("#### Lancement classique")
         st.code("bash launch.sh", language="bash")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────────────────── le main quoi
 if __name__ == "__main__":
     main()

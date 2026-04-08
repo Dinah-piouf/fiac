@@ -1,8 +1,8 @@
 #!/bin/bash
-# =============================================================================
-# FACE ID — Script de lancement automatique
-# Usage : bash launch.sh
-# =============================================================================
+# ===================================================================================================
+# FACE ID — Script de lancement automatique, donne l'environnement parfait Python pour l'application!
+# Usage : bash launch_fast.sh
+# ===================================================================================================
 
 set -e
 
@@ -11,20 +11,24 @@ APP_FILE="face_recognition_app.py"
 REQUIRED_MINOR_MIN=10
 REQUIRED_MINOR_MAX=12
 
-# ─────────────────────────────────────────────────────────────────────────────
+# _____________________________________________________________________________
 # 0. DIAGNOSTIC & NETTOYAGE INITIAL
-# ─────────────────────────────────────────────────────────────────────────────
+# _____________________________________________________________________________
 echo "============================================="
-echo "    FIAC - Diagnostic de l'environnement"
+echo "    FIAC - Diagnostic de l'environnement     "
 echo "============================================="
 echo ""
+
+
+# 0. détection et comptage des conflits
+
 
 CONFLICTS=0
 
 # 0a. Détecter les venvs actifs qui pourraient entrer en conflit
 if [ -n "$VIRTUAL_ENV" ]; then
     echo "ATTENTION:  CONFLIT DÉTECTÉ : un venv est déjà actif --> $VIRTUAL_ENV"
-    echo "   Désactivation automatique..."
+    echo "Désactivation automatique..."
     deactivate 2>/dev/null || true
     CONFLICTS=$((CONFLICTS + 1))
 fi
@@ -44,7 +48,7 @@ if [ -d "$VENV_DIR" ]; then
         VENV_MINOR=$(echo "$VENV_VER" | cut -d. -f2)
         if [ "$VENV_MINOR" -gt "$REQUIRED_MINOR_MAX" ] || [ "$VENV_MINOR" -lt "$REQUIRED_MINOR_MIN" ] 2>/dev/null; then
             echo "ATTENTION:  CONFLIT DÉTECTÉ : le venv '$VENV_DIR' utilise Python $VENV_VER (incompatible)"
-            echo "   Suppression et recréation avec une version compatible..."
+            echo "Suppression et recréation avec une version compatible..."
             rm -rf "$VENV_DIR"
             CONFLICTS=$((CONFLICTS + 1))
         fi
@@ -90,10 +94,10 @@ fi
 
 echo ""
 echo "============================================="
-echo "   FIAC - Installation & Lancement"
+echo "   FIAC - Installation & Lancement           "
 echo "============================================="
 
-# ----- 1. Installer uv (installeur rapide) ---------------------------------------
+#  1. Installer uv (installeur rapide) ---------------------------------------
 echo ""
 echo "--> Vérification de uv (installeur rapide)..."
 if ! command -v uv &>/dev/null; then
@@ -104,7 +108,7 @@ if ! command -v uv &>/dev/null; then
 fi
 echo "O.K.: uv disponible : $(uv --version)"
 
-# --- 2. Trouver une version Python compatible ------------------------------------
+#  2. Trouver une version Python compatible ------------------------------------
 find_python() {
     for cmd in python3.11 python3.10 python3.12 python3; do
         if command -v "$cmd" &>/dev/null; then
@@ -118,6 +122,16 @@ find_python() {
     done
     return 1
 }
+
+
+
+#########################################################################################################################################################
+##                                                     POINT PIVOTANT - UTILISATION DE WINDOWS                                                         ##
+#########################################################################################################################################################
+
+
+
+## Début commenter ici, si Windows
 
 echo ""
 echo "--> Recherche d'une version Python compatible (3.10 à 3.12)..."
@@ -133,7 +147,36 @@ fi
 
 echo "O.K.: Python : $PYTHON ($($PYTHON --version))"
 
-# ---- 3. Créer le venv avec uv ------------------------------------------
+## Fin commenter ici pour Windows
+
+## Début décommenter ici pour Windows
+
+# echo ""
+# echo "--> Forçage de Python 3.10 pour s'adapter aux exigences Windows..."
+
+# # Vérifier si python3.10 existe déjà
+# if command -v python3.10 &>/dev/null; then
+#     PYTHON="python3.10"
+# else
+#     echo "Python 3.10 non trouvé → installation via uv..."
+#     uv python install 3.10
+#     PYTHON=$(uv python find 3.10)
+# fi
+
+# echo "O.K.: Python : $PYTHON ($($PYTHON --version))"
+
+## Fin décommenter ici pour Windows, entrer la commande bash launch_fast.sh dans Git Bash
+
+
+
+#########################################################################################################################################################
+##                                                    FIN POINT PIVOTANT - UTILISATION DE WINDOWS                                                      ##
+#########################################################################################################################################################
+
+
+
+
+#  3. Créer le venv avec uv ------------------------------------------
 if [ ! -d "$VENV_DIR" ]; then
     echo ""
     echo "--> Création de l'environnement virtuel..."
@@ -146,9 +189,9 @@ fi
 source "$VENV_DIR/bin/activate"
 echo "O.K.: Environnement activé : $(which python) ($(python --version))"
 
-# --- 4. Installer les dépendances avec uv ----------------------------------
+# 4. Installer les dépendances avec uv ----------------------------------
 echo ""
-echo "--> Vérification des dépendances (uv - mode rapidos)..."
+echo "--> Vérification des dépendances (uv - mode rapidos!)..."
 
 check_pkg() {
     python -c "import $1" &>/dev/null
@@ -181,7 +224,7 @@ install_if_missing "matplotlib"      matplotlib
 install_if_missing "streamlit"       streamlit
 install_if_missing "tqdm"            tqdm
 
-# ---- 5. Vérifier que le fichier app existe ---------------------------------
+#  5. Vérifier que le fichier app existe ---------------------------------
 echo ""
 if [ ! -f "$APP_FILE" ]; then
     echo "NO NO! Fichier $APP_FILE introuvable dans : $(pwd)"
@@ -189,7 +232,7 @@ if [ ! -f "$APP_FILE" ]; then
     exit 1
 fi
 
-# ---- 6. Résumé final avant lancement ------------------------------------------
+#  6. Résumé final avant lancement ------------------------------------------
 echo ""
 echo "============================================="
 echo "   O.K.: Environnement prêt"
@@ -198,7 +241,7 @@ echo "   Venv    : $(which python)"
 echo "   GPU     : $(python -c "import torch; print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'Non détecté (CPU)')" 2>/dev/null)"
 echo "============================================="
 
-# --- 7. Lancer Streamlit --------------------------------------------------------
+#  7. Lancer Streamlit --------------------------------------------------------
 echo ""
 echo "   En avant! Lancement de l'application!"
 echo "   Veuillez ouvrir le lien suivant: http://localhost:8501 dans votre navigateur"
