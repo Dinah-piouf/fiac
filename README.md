@@ -349,7 +349,7 @@ Le dataset est téléchargé automatiquement dans `data/` au lancement de l'éva
 |---|---|---|
 | `torch` | 2.x | Framework deep learning |
 | `torchvision` | 0.x | Transforms & utilitaires vision |
-| `facenet-pytorch` | 2.5+ | Modèle FaceNet + MTCNN |
+| `tensorflow` | 2.x | Modèle de deep learning (ResNet50, etc.) |
 | `insightface` | 0.7+ | Modèle ArcFace |
 | `onnxruntime` | 1.x | Runtime requis par insightface |
 | `opencv-python` | 4.x | Traitement d'images & webcam |
