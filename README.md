@@ -234,6 +234,12 @@ bash launch.sh
 
 On peut ensuite ouvrir **http://localhost:8501** dans le navigateur.
 
+
+### Lancement via Windows
+
+Il faut commenter et décommenter ce dont on a besoin dans le fichier launch_fast.sh (déjà déterminé dedans).
+Ensuite, reproduire les étapes plus haut pour lancer, et le faire grâce à Git Bash.
+
 ---
 
 ## Structure du projet
