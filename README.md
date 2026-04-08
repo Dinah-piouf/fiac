@@ -4,9 +4,9 @@ title: FIAC
 ---
 
 # FIAC: Facial recognition Independant and ACcompanied by deep learning
-### Reconnaissance faciale pour la vérification d'identité, amélioré par deep learning
+### Reconnaissance faciale pour la vérification d'identité, améliorée par deep learning
 
-> Système de vérification d'identité par deep learning, comparant deux approches state-of-the-art, **ResNet50** (*vu en cours*) et **ArcFace**, avec une interface graphique intuitive développée en Streamlit.
+> Système de vérification d'identité par deep learning, comparant deux approches, **ResNet50** (*vu en cours*) et **ArcFace**, avec une interface graphique intuitive développée en Streamlit.
 
 ---
 
@@ -18,14 +18,11 @@ title: FIAC
 - [Architecture du système](#-architecture-du-système)
 - [Modèles implémentés](#-modèles-implémentés)
 - [Métriques d'évaluation](#-métriques-dévaluation)
-- [Résultats](#-résultats)
 - [Installation & Lancement](#-installation--lancement)
 - [Structure du projet](#-structure-du-projet)
 - [Guide d'utilisation](#-guide-dutilisation)
 - [Dataset](#-dataset)
 - [Dépendances](#-dépendances)
-- [Limitations connues](#-limitations-connues)
-- [Pistes d'amélioration](#-pistes-damélioration)
 - [Autrice](#-autrice)
 - [Licence](#-licence)
 - [Précautions](#-précautions)
@@ -40,15 +37,19 @@ Le MFA est très utile en entreprise, surtout dans les domaines critiques tels q
 
 Ce projet s'inscrivant dans cet objectif, le voici donc: c'est une application en locale, permettant ainsi de bien contrôler où vont vos données, par Steamlit.
 
+Nous parlons donc ici de reconnaisance faciale alimentée par deep learning, en effet, nous utilisons deux modèles de transfer learning augmentés par deep learning. Nous allons tout du long faire un comparatif de ces modèles.
+
 ---
 
 ## Aperçu
 
-Ce projet implémente un pipeline complet de **vérification d'identité par reconnaissance faciale**, dans le cadre d'un cours de deep learning. L'objectif est de comparer deux algorithmes de référence sur le dataset public **LFW (Labeled Faces in the Wild)** et de rendre les résultats accessibles via une interface utilisateur moderne.
+Ce projet implémente une pipeline complète de **vérification d'identité par reconnaissance faciale**, dans le cadre de l'UE "Programmation carte à puce". L'objectif est de comparer au moins deux algorithmes de référence sur le dataset public choisi **LFW (Labeled Faces in the Wild)** et de rendre les résultats accessibles via une interface utilisateur moderne et accessible.
 
-> 📸 *[Insérer ici un screenshot de l'interface principale]*
+![apercu](https://hackmd.io/_uploads/r1pxVnQn-g.png)
 
-Le système répond à une question simple : **est-ce que ces deux visages appartiennent à la même personne ?**
+>Page principale de l'application
+
+Le système répond à une question simple : **est-ce que ces deux visages appartiennent à la même personne ?** Le système le fait alors par deux moyens: deux photos, ou une photo de référence et la webcam.
 
 ---
 
@@ -56,12 +57,12 @@ Le système répond à une question simple : **est-ce que ces deux visages appar
 
 | Fonctionnalité | Description |
 |---|---|
-| 📷 Vérification par image | Upload de deux photos, score de similarité instantané |
-| 🎥 Webcam temps réel | Comparaison live avec une photo de référence |
-| 📊 Évaluation LFW | FAR, FRR, courbes ROC, AUC sur le dataset benchmark |
-| ⚙️ Multi-modèles | Bascule entre FaceNet et ArcFace en un clic |
-| 🎚️ Seuil ajustable | Curseur pour calibrer la sensibilité de vérification |
-| 💾 Export des résultats | Téléchargement des courbes ROC en PNG |
+|Vérification par image | Upload de deux photos, score de similarité instantané |
+|Webcam temps réel | Comparaison live avec une photo de référence |
+|Évaluation LFW | FAR, FRR, courbes ROC, AUC sur le dataset benchmark |
+|Multi-modèles | Bascule entre ResNet50 et ArcFace en un clic |
+|Seuil ajustable | Curseur pour calibrer la sensibilité de vérification |
+|Export des résultats | Téléchargement des courbes ROC en PNG |
 
 ---
 
@@ -72,14 +73,14 @@ Image(s) d'entrée
        │
        ▼
 ┌─────────────────┐
-│  Détection      │  ← MTCNN (Multi-task Cascaded CNN)
-│  & Alignement   │     Localise et aligne le visage
+│  Prétraitement  │  ← Redimensionnement + normalisation ImageNet
+│  & Resize       │     224×224 (ResNet50) / 160×160 (ArcFace)
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│  Extraction     │  ← FaceNet  →  embedding 512-D
-│  d'embeddings   │    ArcFace  →  embedding 512-D
+│  Extraction     │  ← ResNet50  →  embedding 2048-D
+│  d'embeddings   │    ArcFace   →  embedding 512-D
 └────────┬────────┘
          │
          ▼
@@ -90,8 +91,8 @@ Image(s) d'entrée
          │
          ▼
 ┌─────────────────┐
-│  Décision       │  ← score ≥ seuil → MATCH ✅
-│                 │    score <  seuil → NO MATCH ❌
+│  Décision       │  ← score ≥ seuil -->  YES YES! MATCH 
+│                 │    score <  seuil --> NO NO! NO MATCH
 └─────────────────┘
 ```
 
@@ -99,24 +100,24 @@ Image(s) d'entrée
 
 ## Modèles implémentés
 
-### 1. FaceNet — `InceptionResnetV1`
+### 1. ResNet50 — `GlobalAveragePooling2D`
 
-FaceNet est un modèle développé par Google qui apprend à projeter les visages dans un espace métrique de 512 dimensions, où la distance entre deux embeddings reflète la similarité entre les identités.
+ResNet50 est un réseau de neurones convolutif profond développé par Microsoft, pré-entraîné sur ImageNet. Utilisé ici comme extracteur de features : on retire la tête de classification et on ajoute un `GlobalAveragePooling2D` pour obtenir un vecteur d'embedding dense, exactement comme défini dans le notebook de référence.
 
-- **Architecture** : InceptionResnetV1
-- **Pré-entraînement** : VGGFace2 (3,31 millions d'images, 9 131 identités)
-- **Dimension d'embedding** : 512
-- **Détection faciale** : MTCNN (Multi-task Cascaded CNN)
-- **Fonction de perte** : Triplet Loss
-- **Librairie** : `facenet-pytorch`
+- **Architecture** : ResNet50 (50 couches, blocs résiduels)
+- **Pré-entraînement** : ImageNet (1,2 million d'images, 1 000 classes)
+- **Dimension d'embedding** : 2048-D
+- **Détection faciale** : aucune — traitement direct de l'image
+- **Normalisation** : `preprocess_input` Keras (normalisation ImageNet)
+- **Librairie** : `tensorflow` / `keras`
 
-> 📸 *[Insérer ici un schéma de l'architecture InceptionResnet ou un exemple d'embedding]*
 
-**Principe de la Triplet Loss :**
-Le modèle est entraîné avec des triplets (ancre, positif, négatif) pour que :
-```
-distance(ancre, positif) + marge < distance(ancre, négatif)
-```
+![fig_resnet](https://hackmd.io/_uploads/Syt3TjQ3be.jpg)
+
+> Schématisation du fonctionnement de ResNet50, Source https://www.ultralytics.com/fr/blog/what-is-resnet-50-and-what-is-its-relevance-in-computer-vision
+
+**Spécificité :** Principe des blocs résiduels
+ResNet introduit des connexions de court-circuit (*skip connections*) qui permettent au gradient de se propager sans dégradation à travers les couches profondes.
 
 ---
 
@@ -126,31 +127,33 @@ ArcFace est un modèle développé par InsightFace qui introduit une marge angul
 
 - **Architecture** : ResNet-based backbone
 - **Pré-entraînement** : MS1MV3 (5,8 millions d'images, 93 431 identités)
-- **Dimension d'embedding** : 512
+- **Dimension d'embedding** : 512-D
 - **Détection faciale** : RetinaFace (intégrée)
 - **Fonction de perte** : ArcFace Loss (marge angulaire additive)
 - **Librairie** : `insightface`
 
-> 📸 *[Insérer ici un schéma illustrant la marge angulaire ArcFace]*
+![fig_arcface](https://hackmd.io/_uploads/r1uECim2bl.png)
+> Schématisation du fonctionnement de ArcFace, Source https://www.ultralytics.com/fr/blog/what-is-resnet-50-and-what-is-its-relevance-in-computer-vision
 
-**Principe de l'ArcFace Loss :**
-```
-L = -log( e^(s·cos(θ_yi + m)) / (e^(s·cos(θ_yi + m)) + Σ e^(s·cos(θ_j))) )
-```
-où `m` est la marge angulaire additive et `s` le facteur d'échelle.
+**Spécificité :** Principe de l'ArcFace Loss
+
+L'ArcFace Loss est une fonction sur laquelle se repose le modèle ArcFace, et permet notamment d'optimiser la marge de distance géodésique (*généralisation d'une ligne droite du plan ou de l'espace euclidien en courbe*) parmi les features, permettant ainsi de donner des résultats plus précis et robustes.
+
 
 ---
 
 ### Comparaison des deux approches
 
-| Critère | FaceNet | ArcFace |
+| Critère | ResNet50 | ArcFace |
 |---|---|---|
-| Architecture | InceptionResnetV1 | ResNet backbone |
-| Dataset d'entraînement | VGGFace2 | MS1MV3 |
-| Fonction de perte | Triplet Loss | ArcFace Loss |
-| Embeddings | 512-D | 512-D |
-| Vitesse CPU | ~200ms/image | ~150ms/image |
-| Robustesse | Bonne | Très bonne |
+| Architecture | ResNet50 + GlobalAvgPool | ResNet backbone |
+| Dataset d'entraînement | ImageNet | MS1MV3 |
+| Spécialisation | Généraliste (features visuelles) | Spécialisé visages |
+| Fonction de perte | Cross-entropy (classification) | ArcFace Loss |
+| Embeddings | 2048-D | 512-D |
+| Détection faciale | Non (image entière) | Oui (RetinaFace) |
+| Vitesse CPU | ~300ms/image | ~150ms/image |
+| Robustesse visages | Moyenne | Très bonne |
 
 ---
 
@@ -178,24 +181,9 @@ La courbe ROC trace le TAR (1−FRR) en fonction du FAR pour tous les seuils pos
 - AUC = 1.0 → système parfait
 - AUC = 0.5 → système aléatoire
 
-> 📸 *[Insérer ici les courbes ROC générées par l'application]*
+![roc_courbe](https://hackmd.io/_uploads/r1xlI3m2bg.png)
 
----
-
-## Résultats
-
-Évaluation réalisée sur le sous-ensemble **test** de LFW (1 000 paires).
-
-| Modèle | AUC | EER | FAR (@ EER) | FRR (@ EER) |
-|---|---|---|---|---|
-| FaceNet | ~0.97 | ~0.05 | ~5% | ~5% |
-| ArcFace | ~0.98 | ~0.04 | ~4% | ~4% |
-
-> Attention, Ces valeurs sont indicatives — les résultats exacts dépendent du nombre de paires évaluées et du seuil calibré.
-
-> 📸 *[Insérer ici le tableau de résultats généré par l'onglet Évaluation]*
-
-**Analyse :** ArcFace surpasse légèrement FaceNet sur LFW, grâce à sa marge angulaire qui force des représentations plus séparables. FaceNet reste très compétitif et plus rapide à l'inférence sur CPU.
+>Page des résultats pour un lancement de l'évaluation LFW.
 
 ---
 
@@ -203,22 +191,24 @@ La courbe ROC trace le TAR (1−FRR) en fonction du FAR pour tous les seuils pos
 
 ### Prérequis
 
-- Python **3.10, 3.11 ou 3.12** (⚠️ Python 3.13 non supporté)
-- WSL, Linux ou macOS
+- Python **3.10, 3.11 ou 3.12** (Attention, Python 3.13 non supporté)
+- WSL, Windows, Linux ou macOS
 - 8 Go de RAM minimum
 - Connexion internet (téléchargement des poids des modèles au premier lancement)
 
-### Lancement automatique (recommandé)
+### Lancement rapide automatique (recommandé)
 
-Le script `launch.sh` gère tout automatiquement :
+Pour un lancement rapide, j'ai choisi `uv`, qui est beaucoup plus rapide que pip pour fetcher et installer les packages. Pour mon système sans GPU, ça a beaucoup aidé.
+
+Le script `launch_fast.sh` gère tout rapidement et automatiquement :
 
 ```bash
-# 1. Cloner ou télécharger le projet
-git clone https://github.com/votre-username/face-id-systeme.git
-cd face-id-systeme
+# 1. Cloner le projet via Github
+git clone https://github.com/Dinah-piouf/fiac.git
+cd fiac
 
 # 2. Lancer le script
-bash launch.sh
+bash launch_fast.sh
 ```
 
 Le script va automatiquement :
@@ -227,28 +217,22 @@ Le script va automatiquement :
 3. Installer toutes les dépendances
 4. Lancer l'application sur `http://localhost:8501`
 
+> Attention, le processus peut être très long au premier lancement, jusqu'à 10 min selon la connexion (TensorFlow et PyTorch pèsent plus de 1,5 Go au total).
+
 > 📸 *[Insérer ici un screenshot du terminal pendant le lancement]*
 
-### Lancement manuel
+### Lancement classique — via pip
 
 ```bash
-# Créer et activer l'environnement virtuel
-python3.11 -m venv faceid_env
-source faceid_env/bin/activate   # Linux/Mac/WSL
-# ou : faceid_env\Scripts\activate  (Windows natif)
+# 1. Cloner le projet
+git clone https://github.com/Dinah-piouf/fiac.git
+cd fiac
 
-# Installer les dépendances
-pip install --upgrade pip "setuptools<82" wheel
-pip install torch torchvision torchaudio
-pip install facenet-pytorch insightface onnxruntime \
-            opencv-python pillow scikit-learn \
-            matplotlib streamlit tqdm
-
-# Lancer l'application
-streamlit run face_recognition_app.py
+# 2. Lancer le script
+bash launch.sh
 ```
 
-Ouvrir ensuite **http://localhost:8501** dans le navigateur.
+On peut ensuite ouvrir **http://localhost:8501** dans le navigateur.
 
 ---
 
@@ -258,10 +242,11 @@ Ouvrir ensuite **http://localhost:8501** dans le navigateur.
 face-id-systeme/
 │
 ├── face_recognition_app.py   ← Application complète (code unique)
-├── launch.sh                 ← Script d'installation & lancement
+├── launch.sh                 ← Script d'installation & lancement classique (pip)
+├── launch_fast.sh            ← Script d'installation & lancement rapide (uv)
 ├── README.md                 ← Ce fichier
 │
-├── data/                     ← Dataset LFW (généré automatiquement)
+├── data/                     ← Dataset LFW (généré automatiquement via l'application)
 │   ├── raw/
 │   ├── processed/
 │   └── pairs/
@@ -271,7 +256,7 @@ face-id-systeme/
     └── results/              ← Métriques JSON par modèle
 ```
 
-> Le fichier `face_recognition_app.py` est **auto-suffisant** : il contient toutes les étapes du pipeline (préparation des données, modèles, évaluation, interface).
+> Le fichier `face_recognition_app.py` est **auto-suffisant** : il contient toutes les étapes de la pipeline (préparation des données, modèles, évaluation, interface Streamlit). Il est aussi très malléable — on peut interchanger les modèles de reconnaissance comme on le souhaite, ou en rajouter d'autres à sa guise.
 
 ---
 
@@ -279,14 +264,16 @@ face-id-systeme/
 
 ### Onglet 1 — Vérification par image
 
-1. Sélectionner un modèle dans la barre latérale (FaceNet ou ArcFace)
-2. Ajuster le seuil de décision si nécessaire (défaut : 0.75)
-3. Uploader une **image de référence** (photo connue de la personne)
-4. Uploader une **image à vérifier**
+1. Sélectionner un modèle dans la barre latérale (**ResNet50** ou **ArcFace**)
+2. Ajuster le seuil de décision si nécessaire (défaut : 0.80 pour ResNet50, 0.30 pour ArcFace)
+3. Uploader une **image de référence** (photo connue de la personne) à l'upload de gauche
+4. Uploader une **image à vérifier** à l'upload de droite
 5. Cliquer sur **Vérifier l'identité**
-6. Lire le résultat : score de similarité + verdict MATCH / NO MATCH
+6. Lire le résultat : score de similarité + dit s'il y a match ou pas
 
-> 📸 *[Insérer ici un screenshot de l'onglet vérification avec un résultat]*
+![apercu](https://hackmd.io/_uploads/rksEN272Zl.png)
+
+>Onglet de vérification / comparaison de deux images
 
 ---
 
@@ -297,7 +284,9 @@ face-id-systeme/
 3. Le système compare en continu le flux webcam à la référence
 4. Cliquer sur **Arrêter** pour terminer
 
-> 📸 *[Insérer ici un screenshot de l'onglet webcam en fonctionnement]*
+![apercu_webcam](https://hackmd.io/_uploads/SJHH4n73bl.png)
+
+>Onglet de vérificaction webcam en temps réel.
 
 ---
 
@@ -309,7 +298,18 @@ face-id-systeme/
 4. Consulter le tableau comparatif FAR / FRR / AUC
 5. Visualiser et télécharger les courbes ROC
 
-> 📸 *[Insérer ici un screenshot des courbes ROC et du tableau comparatif]*
+![apercu_lfw_eval](https://hackmd.io/_uploads/HyJINhm3Wx.png)
+
+>Onglet d'évaluation LFW
+
+
+### Onglet 4 - Environnement
+
+Cet onglet est à disposition afin de voir en temps réel l'état des dépendances, et un récap de comment lancer l'application.
+
+![apercu_env](https://hackmd.io/_uploads/SJtd4hm2bg.png)
+
+>Onglet environnement
 
 ---
 
@@ -317,7 +317,7 @@ face-id-systeme/
 
 | Paramètre | Description |
 |---|---|
-| **Modèle** | Basculer entre FaceNet et ArcFace |
+| **Modèle** | Basculer entre ResNet50 et ArcFace |
 | **Seuil** | Similarité cosinus minimale pour valider (0.0–1.0) |
 | **Dispositif** | CPU ou GPU détecté automatiquement |
 
@@ -352,29 +352,6 @@ Le dataset est téléchargé automatiquement dans `data/` au lancement de l'éva
 | `matplotlib` | 3.x | Génération des courbes ROC |
 | `streamlit` | 1.x | Interface graphique web |
 | `tqdm` | 4.x | Barres de progression |
-
----
-
-## Limitations connues
-
-- **Python 3.13 non supporté** : `facenet-pytorch` nécessite Python ≤ 3.12
-- **Webcam dans WSL** : l'accès à la webcam peut être limité selon la configuration WSL
-- **Premier lancement lent** : téléchargement des poids (~500 Mo) à la première exécution
-- **Performance CPU** : l'évaluation de 500 paires peut prendre 10–15 minutes sans GPU
-- **ArcFace sur petits visages** : les performances se dégradent si le visage est trop petit dans l'image
-
----
-
-## Pistes d'amélioration
-
-- [ ] Ajouter un troisième modèle (VGGFace2, DeepFace) pour augmenter d'autant plus la comparaison et d'avoir du choix
-- [ ] Implémenter la détection de liveness (anti-spoofing) afin de détecter que ce soit bien la vraie personne et pas une reconstitution
-- [ ] Support GPU natif pour l'inférence ArcFace
-- [ ] Déploiement cloud (Streamlit Cloud ou Hugging Face Spaces) pour une accessibilité aisée
-- [ ] Base de données d'identités pour la vérification 1-à-N (identification), car plus d'entraînement amène un meilleur modèle
-- [ ] Calibration automatique du seuil optimal par validation croisée, pour les images et/ou webcam de moindre qualité
-- [ ] Export des résultats en PDF, pour une meilleure visibilité et versatilité
-- [ ] Meilleur moyen de créer les venv Python, car les téléchargement des dépendances sont longues, même avec uv.
 
 ---
 
