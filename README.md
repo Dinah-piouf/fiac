@@ -341,6 +341,14 @@ https://github.com/user-attachments/assets/9106674c-2894-4c2d-91b2-5afae6143fa8
 
 Le dataset est téléchargé automatiquement dans `data/` au lancement de l'évaluation.
 
+En cas de problème lors de l'évaluation des courbes ROC, veuillez procéder:
+
+```bash
+bash lfw_helper.sh
+```
+
+Cela va permettre, si problème de PC pas assez puissant, de télécharger via curl toute la base de données LFW, et donc de n'avoir aucune célébrité manquante pour l'évaluation.
+
 ---
 
 ## Dépendances
